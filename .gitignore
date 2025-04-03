@@ -532,6 +532,9 @@ FodyWeavers.xsd
 
 # JetBrains Rider
 
+#Publish package
+publish-nuget.ps1
+
 ### VisualStudio Patch ###
 # Additional files built by Visual Studio
 
