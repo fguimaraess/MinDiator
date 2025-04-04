@@ -1,9 +1,10 @@
 
 using MinDiator.Interfaces;
 
+namespace SampleAPI.Features.GetWeatherForecast;
 public partial class GetWeatherForecast
 {
-    public class Handler : IRequestHandler<Query, IEnumerable<WeatherForecast>>
+    public class Handler : IRequestHandler<Query, IEnumerable<Response>>
     {
         private static readonly string[] Summaries = new[]
         {
@@ -11,10 +12,10 @@ public partial class GetWeatherForecast
             "Warm", "Balmy", "Hot", "Sweltering", "Scorching"
         };
 
-        public async Task<IEnumerable<WeatherForecast>> Handle(Query request, CancellationToken cancellationToken)
+        public async Task<IEnumerable<Response>> Handle(Query request, CancellationToken cancellationToken)
         {
             var forecast = Enumerable.Range(1, 5).Select(index =>
-                new WeatherForecast(
+                new Response(
                     DateOnly.FromDateTime(DateTime.Now.AddDays(index)),
                     Random.Shared.Next(-20, 55),
                     Summaries[Random.Shared.Next(Summaries.Length)]

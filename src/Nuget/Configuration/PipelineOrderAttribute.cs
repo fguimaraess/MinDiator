@@ -1,6 +1,4 @@
-﻿using System;
-
-namespace MinDiator.Configuration;
+﻿namespace MinDiator.Configuration;
 
 /// <summary>
 /// Atributo que define a ordem de execução dos behaviors no pipeline

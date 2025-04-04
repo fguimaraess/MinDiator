@@ -1,16 +1,22 @@
-using MinDiator.Extensions;
 using MinDiator.Interfaces;
 using SampleAPI.Behavior;
+using SampleAPI.Features.GetWeatherForecast;
+using SampleAPI.Features.PostWeatherForecast;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
+
+//MinDiator with explicit PipelineBehavior:
 builder.Services.AddMinDiator(cfg =>
 {
     cfg.RegisterServicesFromAssembly(typeof(Program).Assembly);
     cfg.AddBehavior(typeof(IPipelineBehavior<,>), typeof(PerformanceBehavior<,>));
 });
+
+//Simple MinDiator:
+//builder.Services.AddMinDiator("SampleAPI");
 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
@@ -39,6 +45,7 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
-app.MapWeatherRoutes();
+app.MapGetWeatherRoute();
+app.MapPostWeatherRoute();
 
 app.Run();

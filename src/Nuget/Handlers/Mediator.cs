@@ -1,17 +1,18 @@
 ﻿using Microsoft.Extensions.DependencyInjection;
 using MinDiator.Configuration;
 using MinDiator.Entities;
+using MinDiator.Handlers;
 using MinDiator.Interfaces;
 using System.Reflection;
 using System.Runtime.ExceptionServices;
 
-namespace MinDiator.Handlers;
+namespace MinDiator;
 
 /// <summary>
 /// Implementação principal do Mediator, responsável por enviar requisições aos handlers apropriados
 /// e coordenar a execução dos behaviors e tratamento de exceções
 /// </summary>
-public class MinDiator : IMinDiator
+public class Mediator : IMediator
 {
     private readonly IServiceProvider _serviceProvider;
 
@@ -19,7 +20,7 @@ public class MinDiator : IMinDiator
     /// Construtor que recebe o provedor de serviços para resolução de handlers e behaviors
     /// </summary>
     /// <param name="serviceProvider">Provedor de serviços para resolução de dependências</param>
-    public MinDiator(IServiceProvider serviceProvider)
+    public Mediator(IServiceProvider serviceProvider)
     {
         _serviceProvider = serviceProvider;
     }
@@ -171,7 +172,7 @@ public class MinDiator : IMinDiator
             var responseType = GetResponseType(requestType);
 
             // Criar o método genérico Send<TResponse>
-            var method = typeof(MinDiator)
+            var method = typeof(Mediator)
                 .GetMethods()
                 .First(m => m.Name == nameof(Send) && m.IsGenericMethod);
 

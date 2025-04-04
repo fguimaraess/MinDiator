@@ -1,12 +1,11 @@
-﻿using MinDiator.Entities;
-using MinDiator.Handlers;
+﻿using MinDiator.Interfaces;
 
-namespace MinDiator.Interfaces;
+namespace MinDiator;
 
 /// <summary>
 /// Interface principal do Mediator, responsável por enviar requisições aos handlers apropriados
 /// </summary>
-public interface IMinDiator
+public interface IMediator
 {
     /// <summary>
     /// Envia uma requisição fortemente tipada para o handler apropriado
