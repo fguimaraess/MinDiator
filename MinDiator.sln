@@ -9,7 +9,7 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SampleMinimalAPI", "src\Sam
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SampleAPI", "src\SampleAPI\SampleAPI.csproj", "{835E3DDF-718E-498C-A723-2DCB89B30823}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Benchmark", "..\src\Benchmark\Benchmark.csproj", "{B12C1399-5D1B-4B09-8827-33DCE84F6B56}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Benchmark", "src\Benchmark\Benchmark.csproj", "{B12C1399-5D1B-4B09-8827-33DCE84F6B56}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

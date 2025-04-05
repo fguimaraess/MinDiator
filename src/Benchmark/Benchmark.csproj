@@ -1,0 +1,26 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <!-- 👈 Troca de Library para Exe -->
+    <TargetFramework>net8.0</TargetFramework>
+    <!-- ou sua versão -->
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+
+    <!-- 👇 Define o build padrão como Release -->
+    <Configuration Condition=" '$(Configuration)' == '' ">Release</Configuration>
+    <StartupObject>Benchmark.Program</StartupObject>
+  </PropertyGroup>
+  
+  <ItemGroup>
+    <PackageReference Include="BenchmarkDotNet" Version="0.14.0" />
+    <PackageReference Include="MediatR" Version="12.5.0" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="9.0.3" />
+  </ItemGroup>
+  
+  <ItemGroup>
+    <ProjectReference Include="..\Nuget\MinDiator.csproj" />
+  </ItemGroup>
+
+
+</Project>
