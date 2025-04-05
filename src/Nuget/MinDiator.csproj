@@ -4,7 +4,7 @@
     <TargetFrameworks>net8.0;net9.0</TargetFrameworks>
     <ImplicitUsings>disable</ImplicitUsings>
     <Nullable>disable</Nullable>
-    <Version>1.0.2.2</Version>
+    <Version>1.0.2.3</Version>
     <Authors>Felipe</Authors>
     <Company>fguimaraess</Company>
     <Description>Minimalist Mediator library for CQRS and Vertical Slice Architecture.</Description>

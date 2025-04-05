@@ -17,7 +17,6 @@ namespace MinDiator;
 public class Mediator : IMediator
 {
     private readonly IServiceProvider _serviceProvider;
-    private static readonly ConcurrentDictionary<Type, object> _handlerCache = new();
     private static readonly ConcurrentDictionary<Type, Type> _handlerTypeCache = new();
     private static readonly ConcurrentDictionary<Type, Func<object, object, CancellationToken, Task<object>>> _handlerDelegates = new();
     private static readonly ConcurrentDictionary<Type, (IReadOnlyList<object> Behaviors, Delegate HandleDelegate)> _pipelineCache = new();
@@ -168,7 +167,7 @@ public class Mediator : IMediator
 
     private static object GetHandler(IServiceProvider serviceProvider, Type handlerType)
     {
-        return _handlerCache.GetOrAdd(handlerType, type => serviceProvider.GetService(type));
+        return serviceProvider.GetRequiredService(handlerType);
     }
 
     private static Func<object, object, CancellationToken, Task<object>> GetHandlerDelegate(Type handlerType)

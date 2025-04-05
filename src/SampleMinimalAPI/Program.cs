@@ -2,6 +2,7 @@ using MinDiator.Interfaces;
 using SampleAPI.Behavior;
 using SampleAPI.Features.GetWeatherForecast;
 using SampleAPI.Features.PostWeatherForecast;
+using System.Data;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -33,7 +34,6 @@ builder.Services.AddSwaggerGen(c =>
         return type.Name;
     });
 });
-
 
 var app = builder.Build();
 

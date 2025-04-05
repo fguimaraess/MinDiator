@@ -12,7 +12,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\Nuget\MinDiator.csproj" />
+    <ProjectReference Include="..\Nuget\MinDiator.csproj" />
   </ItemGroup>
 
 </Project>
