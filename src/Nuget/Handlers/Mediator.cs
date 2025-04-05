@@ -40,7 +40,6 @@ public class Mediator : IMediator
     /// <returns>A resposta do handler</returns>
     public async Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
     {
-        using var scope = _serviceProvider.CreateScope();
         var requestType = request.GetType();
 
         try
@@ -80,10 +79,6 @@ public class Mediator : IMediator
 
             // Se nenhum handler de exceção tratou, relançar a exceção
             throw;
-        }
-        finally
-        {
-            scope.Dispose();
         }
     }
 
