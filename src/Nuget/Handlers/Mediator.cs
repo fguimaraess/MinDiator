@@ -3,6 +3,8 @@ using MinDiator.Configuration;
 using MinDiator.Entities;
 using MinDiator.Handlers;
 using MinDiator.Interfaces;
+using System.Collections.Concurrent;
+using System.Linq.Expressions;
 using System.Reflection;
 using System.Runtime.ExceptionServices;
 
@@ -15,6 +17,10 @@ namespace MinDiator;
 public class Mediator : IMediator
 {
     private readonly IServiceProvider _serviceProvider;
+    private static readonly ConcurrentDictionary<Type, object> _handlerCache = new();
+    private static readonly ConcurrentDictionary<Type, Type> _handlerTypeCache = new();
+    private static readonly ConcurrentDictionary<Type, Func<object, object, CancellationToken, Task<object>>> _handlerDelegates = new();
+    private static readonly ConcurrentDictionary<Type, (IReadOnlyList<object> Behaviors, Delegate HandleDelegate)> _pipelineCache = new();
 
     /// <summary>
     /// Construtor que recebe o provedor de serviços para resolução de handlers e behaviors
@@ -34,6 +40,7 @@ public class Mediator : IMediator
     /// <returns>A resposta do handler</returns>
     public async Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
     {
+        using var scope = _serviceProvider.CreateScope();
         var requestType = request.GetType();
 
         try
@@ -74,6 +81,10 @@ public class Mediator : IMediator
             // Se nenhum handler de exceção tratou, relançar a exceção
             throw;
         }
+        finally
+        {
+            scope.Dispose();
+        }
     }
 
     /// <summary>
@@ -86,42 +97,33 @@ public class Mediator : IMediator
     private async Task<TResponse> CreateRequestPipeline<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken)
     {
         var requestType = request.GetType();
+        var pipelineInfo = _pipelineCache.GetOrAdd(
+            requestType,
+            _ => BuildPipeline<TResponse>(requestType));
 
-        // Obter todos os behaviors registrados
-        var pipelineType = typeof(IPipelineBehavior<,>).MakeGenericType(requestType, typeof(TResponse));
-        var behaviors = _serviceProvider.GetServices(pipelineType).ToList();
-
-        // Ordenar os behaviors com base no atributo PipelineOrder
-        behaviors = behaviors
-            .Select(b => new
-            {
-                Behavior = b,
-                Order = b.GetType().GetCustomAttribute<PipelineOrderAttribute>()?.Order ?? int.MaxValue
-            })
-            .OrderBy(b => b.Order)
-            .Select(b => b.Behavior)
-            .ToList();
-
-        // Se não houver behaviors, execute o handler diretamente
-        if (!behaviors.Any())
-        {
+        if (pipelineInfo.Behaviors.Count == 0)
             return await ExecuteHandler(request, cancellationToken);
-        }
 
-        // Construir o pipeline com todos os behaviors em ordem
+        //Inicializa o pipeline com o handler final
         RequestHandlerDelegate<TResponse> pipeline = () => ExecuteHandler(request, cancellationToken);
 
-        // Aplicar behaviors do último para o primeiro (encadeados)
-        foreach (var behavior in behaviors.AsEnumerable().Reverse())
+        foreach (var behavior in pipelineInfo.Behaviors.Cast<dynamic>().Reverse())
         {
             var currentPipeline = pipeline;
-            var handleMethod = pipelineType.GetMethod("Handle");
-
-            pipeline = () => (Task<TResponse>)handleMethod.Invoke(
-                behavior, new object[] { request, currentPipeline, cancellationToken });
+            pipeline = () => behavior.Handle((dynamic)request, currentPipeline, cancellationToken);
         }
 
         return await pipeline();
+    }
+
+    private (IReadOnlyList<object> Behaviors, Delegate HandleDelegate) BuildPipeline<TResponse>(Type requestType)
+    {
+        var behaviorType = typeof(IPipelineBehavior<,>).MakeGenericType(requestType, typeof(TResponse));
+        var behaviors = _serviceProvider.GetServices(behaviorType)
+                                        .OrderBy(b => b.GetType().GetCustomAttribute<PipelineOrderAttribute>()?.Order ?? int.MaxValue)
+                                        .ToList();
+
+        return (behaviors, null);
     }
 
     /// <summary>
@@ -137,8 +139,8 @@ public class Mediator : IMediator
         var responseType = typeof(TResponse);
 
         // Obter o handler
-        var handlerType = typeof(IRequestHandler<,>).MakeGenericType(requestType, responseType);
-        var handler = _serviceProvider.GetService(handlerType);
+        var handlerType = GetHandlerType(requestType);
+        var handler = GetHandler(_serviceProvider, handlerType);
 
         if (handler == null)
         {
@@ -146,10 +148,77 @@ public class Mediator : IMediator
         }
 
         // Executar o handler
-        var method = handlerType.GetMethod("Handle");
-        var task = (Task<TResponse>)method.Invoke(handler, new object[] { request, cancellationToken });
+        var handlerDelegate = GetHandlerDelegate(handler.GetType());
+        var result = await handlerDelegate(handler, request, cancellationToken);
 
-        return await task;
+        return (TResponse)result;
+    }
+
+
+    private static Type GetHandlerType(Type requestType)
+    {
+        return _handlerTypeCache.GetOrAdd(requestType, static type =>
+        {
+            //Encontrar a interface
+            var requestInterface = type
+                                    .GetInterfaces()
+                                    .FirstOrDefault(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IRequest<>))
+                                    ?? throw new InvalidOperationException($"Tipo {type} não implementa IRequest<>");
+
+            var responseType = requestInterface.GetGenericArguments()[0];
+
+            return typeof(IRequestHandler<,>).MakeGenericType(type, responseType);
+        });
+    }
+
+    private static object GetHandler(IServiceProvider serviceProvider, Type handlerType)
+    {
+        return _handlerCache.GetOrAdd(handlerType, type => serviceProvider.GetService(type));
+    }
+
+    private static Func<object, object, CancellationToken, Task<object>> GetHandlerDelegate(Type handlerType)
+    {
+        return _handlerDelegates.GetOrAdd(handlerType, type =>
+        {
+            //Encontrar a interface
+            var interfaceType = type.GetInterfaces()
+                                .FirstOrDefault(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IRequestHandler<,>))
+                                    ?? throw new InvalidOperationException($"Tipo {type} não implementa IRequestHandler");
+
+            var requestType = interfaceType.GetGenericArguments()[0];
+            var responseType = interfaceType.GetGenericArguments()[1];
+
+            var method = interfaceType.GetMethod("Handle");
+
+            var handlerParam = Expression.Parameter(typeof(object), "handler");
+            var requestParam = Expression.Parameter(typeof(object), "request");
+            var cancellationParam = Expression.Parameter(typeof(CancellationToken), "ct");
+
+            var handlerCast = Expression.Convert(handlerParam, type);
+            var requestCast = Expression.Convert(requestParam, requestType);
+
+            var call = Expression.Call(handlerCast, method, requestCast, cancellationParam);
+
+            //Auxilia na conversão de Task<T> em Task<object>
+            var wrapperMethod = typeof(Mediator)
+            .GetMethod(nameof(ConvertTaskToObjectAsync), BindingFlags.NonPublic | BindingFlags.Static)
+            .MakeGenericMethod(responseType);
+
+            var wrappedCall = Expression.Call(wrapperMethod, call);
+
+            return Expression.
+                    Lambda<Func<object, object, CancellationToken, Task<object>>>(
+                        wrappedCall,
+                        handlerParam,
+                        requestParam,
+                        cancellationParam)
+                    .Compile();
+        });
+    }
+
+    private static async Task<object> ConvertTaskToObjectAsync<T>(Task<T> task)
+    {
+        return await task.ConfigureAwait(false);
     }
 
     /// <summary>
