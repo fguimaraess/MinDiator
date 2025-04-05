@@ -11,7 +11,7 @@ public class MinDiatorConfiguration
 {
     private readonly List<Assembly> _assemblies = new();
     private readonly List<(Type InterfaceType, Type ImplementationType, ServiceLifetime Lifetime)> _behaviors = new();
-    private readonly List<(Type InterfaceType, Type ImplementationType)> _exceptionHandlers = new();
+    private readonly List<(Type InterfaceType, Type ImplementationType, ServiceLifetime Lifetime)> _exceptionHandlers = new();
     private readonly IServiceCollection _services;
     private bool _hasRegistered = false;
 
@@ -103,7 +103,7 @@ public class MinDiatorConfiguration
     /// <param name="handlerInterface">Tipo da interface do handler de exceção</param>
     /// <param name="handlerImplementation">Tipo da implementação do handler de exceção</param>
     /// <returns>A instância de configuração para chamadas em cadeia</returns>
-    public MinDiatorConfiguration AddExceptionHandler(Type handlerInterface, Type handlerImplementation)
+    public MinDiatorConfiguration AddExceptionHandler(Type handlerInterface, Type handlerImplementation, ServiceLifetime lifetime = ServiceLifetime.Transient)
     {
         if (handlerInterface == null)
             throw new ArgumentNullException(nameof(handlerInterface), "Interface do exception handler não pode ser nula.");
@@ -111,7 +111,7 @@ public class MinDiatorConfiguration
         if (handlerImplementation == null)
             throw new ArgumentNullException(nameof(handlerImplementation), "Implementação do exception handler não pode ser nula.");
 
-        _exceptionHandlers.Add((handlerInterface, handlerImplementation));
+        _exceptionHandlers.Add((handlerInterface, handlerImplementation, lifetime));
         return this;
     }
 
@@ -185,9 +185,9 @@ public class MinDiatorConfiguration
     /// </summary>
     private void RegisterConfiguredExceptionHandlers()
     {
-        foreach (var (interfaceType, implementationType) in _exceptionHandlers)
+        foreach (var (interfaceType, implementationType, lifetime) in _exceptionHandlers)
         {
-            _services.AddTransient(interfaceType, implementationType);
+            _services.Add(new ServiceDescriptor(interfaceType, implementationType));
         }
     }
 }
