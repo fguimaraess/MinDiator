@@ -20,15 +20,71 @@ public class Mediator : IMediator
     private static readonly ConcurrentDictionary<Type, Type> _handlerTypeCache = new();
     private static readonly ConcurrentDictionary<Type, Func<object, object, CancellationToken, Task<object>>> _handlerDelegates = new();
     private static readonly ConcurrentDictionary<Type, (IReadOnlyList<object> Behaviors, Delegate HandleDelegate)> _pipelineCache = new();
+    private readonly Dictionary<string, IReadOnlyList<object>> _behaviorMap;
 
-    /// <summary>
-    /// Construtor que recebe o provedor de serviços para resolução de handlers e behaviors
-    /// </summary>
-    /// <param name="serviceProvider">Provedor de serviços para resolução de dependências</param>
-    public Mediator(IServiceProvider serviceProvider)
+
+    ///// <summary>
+    ///// Construtor que recebe o provedor de serviços para resolução de handlers e behaviors
+    ///// </summary>
+    ///// <param name="serviceProvider">Provedor de serviços para resolução de dependências</param>
+    //public Mediator(IServiceProvider serviceProvider)
+    //{
+    //    _serviceProvider = serviceProvider;
+    //}
+
+
+    Type GetResponseTypeFromRequest(Type requestType)
+    {
+        var requestInterface = requestType
+            .GetInterfaces()
+            .FirstOrDefault(i =>
+                i.IsGenericType &&
+                i.GetGenericTypeDefinition() == typeof(IRequest<>));
+
+        return requestInterface?.GetGenericArguments()[0];
+    }
+
+
+
+/// <summary>
+/// 
+/// </summary>
+/// <param name="serviceProvider"></param>
+/// <param name="assemblies"></param>
+    public Mediator(IServiceProvider serviceProvider, List<Assembly> assemblies)
     {
         _serviceProvider = serviceProvider;
+        _behaviorMap = new Dictionary<string, IReadOnlyList<object>>();
+
+        assemblies
+            .Where(a => !a.IsDynamic && !a.FullName.StartsWith("System"))
+            .SelectMany(a => a.GetTypes())
+            .Where(t =>
+                t.IsClass &&
+                !t.IsAbstract &&
+                t.GetInterfaces().Any(i =>
+                    i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IRequest<>)) // para IRequest<T>
+                                                                                           // || typeof(IRequest).IsAssignableFrom(t) // opcional: para IRequest sem genérico
+            )
+            .ToList().ForEach(e =>
+            {
+                var responseType = GetResponseTypeFromRequest(e);
+                var requestType = e.GetInterfaces()
+                    .First(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IRequest<>));
+
+                var behaviorPipelineType = typeof(IPipelineBehavior<,>).MakeGenericType(requestType, responseType);
+
+                var instance = _serviceProvider.GetServices(behaviorPipelineType)
+                                        .OrderBy(b => b.GetType().GetCustomAttribute<PipelineOrderAttribute>()?.Order ?? int.MaxValue)
+                                        .ToList();
+
+                _behaviorMap[e.AssemblyQualifiedName] = instance;
+            });
     }
+
+
+
+
 
     /// <summary>
     /// Envia uma requisição fortemente tipada para o handler apropriado
@@ -112,12 +168,19 @@ public class Mediator : IMediator
 
     private (IReadOnlyList<object> Behaviors, Delegate HandleDelegate) BuildPipeline<TResponse>(Type requestType)
     {
-        var behaviorType = typeof(IPipelineBehavior<,>).MakeGenericType(requestType, typeof(TResponse));
-        var behaviors = _serviceProvider.GetServices(behaviorType)
-                                        .OrderBy(b => b.GetType().GetCustomAttribute<PipelineOrderAttribute>()?.Order ?? int.MaxValue)
-                                        .ToList();
 
-        return (behaviors, null);
+        return (_behaviorMap[requestType.AssemblyQualifiedName], null);
+
+        //if (_behaviorMap.TryGetValue(requestType.AssemblyQualifiedName, out IReadOnlyList<object> ret))
+        //{
+        //    return (ret, null);
+        //}
+
+        //var behaviorType = typeof(IPipelineBehavior<,>).MakeGenericType(requestType, typeof(TResponse));
+        //var behaviors = _serviceProvider.GetServices(behaviorType)
+        //                                .OrderBy(b => b.GetType().GetCustomAttribute<PipelineOrderAttribute>()?.Order ?? int.MaxValue)
+        //                                .ToList();
+        //return (behaviors, null);
     }
 
     /// <summary>

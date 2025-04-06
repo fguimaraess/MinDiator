@@ -124,8 +124,6 @@ public class MinDiatorConfiguration
         if (!_assemblies.Any())
             throw new InvalidOperationException("Nenhum assembly registrado. Utilize 'RegisterServicesFromAssembly' ou métodos similares para adicionar assemblies antes de registrar.");
 
-        // Registrar o mediador
-        _services.AddScoped<IMediator, Mediator>();
 
         foreach (var assembly in _assemblies.Distinct())
         {
@@ -144,6 +142,16 @@ public class MinDiatorConfiguration
 
         // Registrar exception handlers configurados explicitamente
         RegisterConfiguredExceptionHandlers();
+
+        //// Registrar o mediador
+        _services.AddSingleton<IMediator>(provider =>
+        {
+            // Instancia a classe concreta
+            return new Mediator(provider, _assemblies);
+        });
+
+
+
 
         _hasRegistered = true;
     }
