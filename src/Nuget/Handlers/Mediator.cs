@@ -32,8 +32,12 @@ public class Mediator : IMediator
     //    _serviceProvider = serviceProvider;
     //}
 
-
-    Type GetResponseTypeFromRequest(Type requestType)
+    /// <summary>
+    /// Getter para Response by Request
+    /// </summary>
+    /// <param name="requestType"></param>
+    /// <returns></returns>
+    private Type GetResponseTypeFromRequest(Type requestType)
     {
         var requestInterface = requestType
             .GetInterfaces()
@@ -46,11 +50,11 @@ public class Mediator : IMediator
 
 
 
-/// <summary>
-/// 
-/// </summary>
-/// <param name="serviceProvider"></param>
-/// <param name="assemblies"></param>
+    /// <summary>
+    /// Construtor que recebe o provedor de serviços para resolução de handlers e behaviors
+    /// </summary>
+    /// <param name="serviceProvider"></param>
+    /// <param name="assemblies"></param>
     public Mediator(IServiceProvider serviceProvider, List<Assembly> assemblies)
     {
         _serviceProvider = serviceProvider;
@@ -63,8 +67,7 @@ public class Mediator : IMediator
                 t.IsClass &&
                 !t.IsAbstract &&
                 t.GetInterfaces().Any(i =>
-                    i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IRequest<>)) // para IRequest<T>
-                                                                                           // || typeof(IRequest).IsAssignableFrom(t) // opcional: para IRequest sem genérico
+                    i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IRequest<>)) 
             )
             .ToList().ForEach(e =>
             {
@@ -170,6 +173,9 @@ public class Mediator : IMediator
     {
 
         return (_behaviorMap[requestType.AssemblyQualifiedName], null);
+
+        //Aqui mudei a busca por reflection e list
+
 
         //if (_behaviorMap.TryGetValue(requestType.AssemblyQualifiedName, out IReadOnlyList<object> ret))
         //{
