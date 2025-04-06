@@ -126,6 +126,7 @@ public class MinDiatorConfiguration
 
         // Registrar o mediador
         _services.AddScoped<IMediator, Mediator>();
+        _services.AddScoped<ISender, Mediator>();
 
         foreach (var assembly in _assemblies.Distinct())
         {

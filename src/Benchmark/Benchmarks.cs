@@ -5,7 +5,10 @@ namespace Benchmark;
 [MemoryDiagnoser]
 public class Benchmarks
 {
+    private MediatR.ISender _senderMediatR;
     private MediatR.IMediator _mediatR;
+
+    private MinDiator.ISender _senderMinDiator;
     private MinDiator.IMediator _minDiator;
 
     private MediatR.IRequest<string> _requestMediatR = new SampleRequest();
@@ -33,18 +36,33 @@ public class Benchmarks
         var provider = services.BuildServiceProvider();
         _mediatR = provider.GetRequiredService<MediatR.IMediator>();
         _minDiator = provider.GetRequiredService<MinDiator.IMediator>();
+
+        _senderMediatR = provider.GetRequiredService<MediatR.ISender>();
+        _senderMinDiator = provider.GetRequiredService<MinDiator.ISender>();
     }
 
     [Benchmark]
-    public async Task<string> MediatR_Send()
+    public async Task<string> MediatR_IMediator_Send()
     {
         return await _mediatR.Send(_requestMediatR);
     }
 
     [Benchmark]
-    public async Task<string> MinDiator_Send()
+    public async Task<string> MinDiator_IMediator_Send()
     {
         return await _minDiator.Send(_requestMinDiator);
+    }
+
+    [Benchmark]
+    public async Task<string> MediatR_ISender_Send()
+    {
+        return await _senderMediatR.Send(_requestMediatR);
+    }
+
+    [Benchmark]
+    public async Task<string> MinDiator_ISender_Send()
+    {
+        return await _senderMinDiator.Send(_requestMinDiator);
     }
 }
 

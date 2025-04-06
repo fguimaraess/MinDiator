@@ -24,3 +24,8 @@ public interface IMediator
     /// <returns>A resposta do handler como objeto</returns>
     Task<object> Send(object request, CancellationToken cancellationToken = default);
 }
+
+public interface ISender
+{
+    Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default);
+}

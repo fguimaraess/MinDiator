@@ -14,7 +14,7 @@ namespace MinDiator;
 /// Implementação principal do Mediator, responsável por enviar requisições aos handlers apropriados
 /// e coordenar a execução dos behaviors e tratamento de exceções
 /// </summary>
-public class Mediator : IMediator
+public class Mediator : IMediator, ISender
 {
     private readonly IServiceProvider _serviceProvider;
     private static readonly ConcurrentDictionary<Type, Type> _handlerTypeCache = new();
