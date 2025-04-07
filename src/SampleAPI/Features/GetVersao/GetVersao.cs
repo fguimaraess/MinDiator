@@ -35,7 +35,7 @@ public partial class GetVersao
         {
 
             var query = @"
-                    select versao FROM public.versoes
+                    select versao, ativo FROM public.versoes
                     WHERE descricao = @versao;
                 ";
 

@@ -20,14 +20,57 @@ public class Mediator : IMediator, ISender
     private static readonly ConcurrentDictionary<Type, Type> _handlerTypeCache = new();
     private static readonly ConcurrentDictionary<Type, Func<object, object, CancellationToken, Task<object>>> _handlerDelegates = new();
     private static readonly ConcurrentDictionary<Type, (IReadOnlyList<object> Behaviors, Delegate HandleDelegate)> _pipelineCache = new();
+    private readonly Dictionary<string, IReadOnlyList<object>> _behaviorMap;
 
     /// <summary>
     /// Construtor que recebe o provedor de serviços para resolução de handlers e behaviors
     /// </summary>
-    /// <param name="serviceProvider">Provedor de serviços para resolução de dependências</param>
-    public Mediator(IServiceProvider serviceProvider)
+    /// <param name="serviceProvider"></param>
+    /// <param name="assemblies"></param>
+    public Mediator(IServiceProvider serviceProvider, List<Assembly> assemblies)
     {
         _serviceProvider = serviceProvider;
+        _behaviorMap = new Dictionary<string, IReadOnlyList<object>>();
+
+        assemblies
+            .Where(a => !a.IsDynamic && !a.FullName.StartsWith("System"))
+            .SelectMany(a => a.GetTypes())
+            .Where(t =>
+                t.IsClass &&
+                !t.IsAbstract &&
+                t.GetInterfaces().Any(i =>
+                    i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IRequest<>))
+            )
+            .ToList().ForEach(e =>
+            {
+                var responseType = GetResponseTypeFromRequest(e);
+                var requestType = e.GetInterfaces()
+                    .First(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IRequest<>));
+
+                var behaviorPipelineType = typeof(IPipelineBehavior<,>).MakeGenericType(requestType, responseType);
+
+                var instance = _serviceProvider.GetServices(behaviorPipelineType)
+                                        .OrderBy(b => b.GetType().GetCustomAttribute<PipelineOrderAttribute>()?.Order ?? int.MaxValue)
+                                        .ToList();
+
+                _behaviorMap[e.AssemblyQualifiedName] = instance;
+            });
+    }
+
+    /// <summary>
+    /// Getter para Response by Request
+    /// </summary>
+    /// <param name="requestType"></param>
+    /// <returns></returns>
+    private Type GetResponseTypeFromRequest(Type requestType)
+    {
+        var requestInterface = requestType
+            .GetInterfaces()
+            .FirstOrDefault(i =>
+                i.IsGenericType &&
+                i.GetGenericTypeDefinition() == typeof(IRequest<>));
+
+        return requestInterface?.GetGenericArguments()[0];
     }
 
     /// <summary>
@@ -112,12 +155,13 @@ public class Mediator : IMediator, ISender
 
     private (IReadOnlyList<object> Behaviors, Delegate HandleDelegate) BuildPipeline<TResponse>(Type requestType)
     {
-        var behaviorType = typeof(IPipelineBehavior<,>).MakeGenericType(requestType, typeof(TResponse));
-        var behaviors = _serviceProvider.GetServices(behaviorType)
-                                        .OrderBy(b => b.GetType().GetCustomAttribute<PipelineOrderAttribute>()?.Order ?? int.MaxValue)
-                                        .ToList();
+        return (_behaviorMap[requestType.AssemblyQualifiedName], null);
+        //var behaviorType = typeof(IPipelineBehavior<,>).MakeGenericType(requestType, typeof(TResponse));
+        //var behaviors = _serviceProvider.GetServices(behaviorType)
+        //                                .OrderBy(b => b.GetType().GetCustomAttribute<PipelineOrderAttribute>()?.Order ?? int.MaxValue)
+        //                                .ToList();
 
-        return (behaviors, null);
+        //return (behaviors, null);
     }
 
     /// <summary>
