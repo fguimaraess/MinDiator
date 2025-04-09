@@ -2,7 +2,7 @@
 
 **MinDiator** é uma biblioteca **leve**, **moderna** e **sem dependências externas** que implementa o padrão **Mediator**, sendo ideal para aplicações baseadas em **CQRS** e arquitetura **Vertical Slice**.
 
-> Inspirado no MediatR, mas com foco em simplicidade, extensibilidade e performance.
+> Inspirado no padrão [Mediator](https://dev.to/moh_moh701/understanding-the-mediator-pattern-in-net-52do), mas com foco em simplicidade, extensibilidade e performance.
 
 ---
 
