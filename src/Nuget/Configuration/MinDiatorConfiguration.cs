@@ -144,13 +144,13 @@ public class MinDiatorConfiguration
         RegisterConfiguredExceptionHandlers();
 
         //// Registrar o mediador
-        _services.AddSingleton<IMediator>(provider =>
+        _services.AddScoped<IMediator>(provider =>
         {
             // Instancia a classe concreta
             return new Mediator(provider, _assemblies);
         });
 
-        _services.AddSingleton<ISender, Sender>();
+        _services.AddScoped<ISender, Sender>();
 
         _hasRegistered = true;
     }
