@@ -85,7 +85,7 @@ public class MinDiatorConfiguration
     /// <param name="behaviorImplementation">Tipo da implementação do behavior</param>
     /// <param name="lifetime">Tempo de vida do serviço no container</param>
     /// <returns>A instância de configuração para chamadas em cadeia</returns>
-    public MinDiatorConfiguration AddBehavior(Type behaviorInterface, Type behaviorImplementation, ServiceLifetime lifetime = ServiceLifetime.Transient)
+    public MinDiatorConfiguration AddBehavior(Type behaviorInterface, Type behaviorImplementation, ServiceLifetime lifetime = ServiceLifetime.Singleton)
     {
         if (behaviorInterface == null)
             throw new ArgumentNullException(nameof(behaviorInterface), "Interface do behavior não pode ser nula.");
