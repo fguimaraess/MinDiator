@@ -1,7 +1,8 @@
 ﻿namespace MinDiator.Handlers;
 /// <summary>
-/// Delegate que encapsula a chamada para o próximo handler ou behavior na cadeia
+/// Delegate that encapsulates the call to the next handler or behavior in the chain
 /// </summary>
-/// <typeparam name="TResponse">Tipo de resposta esperada</returns>
-/// <returns>Task contendo a resposta</returns>
-public delegate Task<TResponse> RequestHandlerDelegate<TResponse>();
+/// <typeparam name="TResponse">Expected response type</returns>
+/// <param name="cancellationToken">Cancellation token.</param>
+/// <returns>Task containing the response</returns>
+public delegate Task<TResponse> RequestHandlerDelegate<TResponse>(CancellationToken cancellationToken = default);
