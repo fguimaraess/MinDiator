@@ -12,7 +12,8 @@ public class MediatRPerformanceBehavior<TRequest, TResponse> : IPipelineBehavior
         var response = await next();
         stopwatch.Stop();
 
-        Console.WriteLine($"[MediatR] {typeof(TRequest).Name} executed in {stopwatch.ElapsedMilliseconds}ms");
+        // Here we can do anything with the elapsed time, like logging it.
+
         return response;
     }
 }

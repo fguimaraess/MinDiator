@@ -11,9 +11,9 @@ public class MinDiatorPerformanceBehavior<TRequest, TResponse> : MinDiator.Inter
         var stopwatch = Stopwatch.StartNew();
         var response = await next();
         stopwatch.Stop();
-        var requestName = request.GetType().Name;
 
-        Console.WriteLine($"[MinDiator] {requestName} executed in {stopwatch.ElapsedMilliseconds}ms");
+        // Here we can do anything with the elapsed time, like logging it.
+
         return response;
     }
 }
