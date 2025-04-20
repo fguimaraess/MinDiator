@@ -59,6 +59,7 @@ namespace MinDiator.Handlers
                 return (RequestHandlerBase)wrapper;
             });
 
+            // TODO: If you want to put back the logic of IExceptionHandler, this is the point.
             return handler.Handle(request, _serviceProvider, cancellationToken);
         }
 
@@ -95,6 +96,7 @@ namespace MinDiator.Handlers
                 return (RequestHandlerBase)wrapper;
             });
 
+            // TODO: If you want to put back the logic of IExceptionHandler, this is the point.
             return handler.Handle(request, _serviceProvider, cancellationToken);
         }        
     }
