@@ -133,6 +133,9 @@ public class MinDiatorConfiguration
             RegisterGenericHandlers(types, typeof(IRequestHandler<,>));
             RegisterGenericHandlers(types, typeof(IRequestExceptionHandler<,>));
             RegisterGenericHandlers(types, typeof(IRequestExceptionHandler<,,>));
+
+            // Adiciona registro para notification handlers
+            RegisterGenericHandlers(types, typeof(INotificationHandler<>));
         }
 
         // Register explicitly configured behaviors.
@@ -141,7 +144,8 @@ public class MinDiatorConfiguration
         // Register explicitly configured exception handlers.
         RegisterConfiguredExceptionHandlers();
 
-        // Register the mediator.
+        // Register the mediator components.
+        _services.AddSingleton<IPublisher, Publisher>();
         _services.AddSingleton<IMediator, Mediator>();
         _services.AddSingleton<ISender, Sender>();
 

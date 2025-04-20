@@ -1,4 +1,5 @@
 ﻿using Microsoft.Extensions.DependencyInjection;
+using MinDiator.Configuration;
 using MinDiator.Interfaces;
 
 namespace MinDiator.Handlers.Base
@@ -56,10 +57,8 @@ namespace MinDiator.Handlers.Base
         }
 
         /// <inheritdoc/>
-        public override Task<TResponse> Handle(IRequest<TResponse> request, IServiceProvider serviceProvider,
-            CancellationToken cancellationToken)
+        public override Task<TResponse> Handle(IRequest<TResponse> request, IServiceProvider serviceProvider, CancellationToken cancellationToken)
         {
-            // Get handler from the current scope.
             var handler = (IRequestHandler<TRequest, TResponse>)serviceProvider.GetService(_handlerType);
             if (handler == null)
             {
@@ -67,21 +66,18 @@ namespace MinDiator.Handlers.Base
                     $"Handler of type {_handlerType.Name} not found for request {typeof(TRequest).Name}");
             }
 
-            // Create the base handler delegate.
             RequestHandlerDelegate<TResponse> pipeline = (ct) => handler.Handle((TRequest)request, ct);
 
-            // Get behaviors from the current scope (respecting lifetimes).
             var behaviors = serviceProvider.GetServices(_behaviorType)
                 .Cast<IPipelineBehavior<TRequest, TResponse>>()
+                .OrderBy(b =>
+                {
+                    var attr = b.GetType().GetCustomAttributes(typeof(PipelineOrderAttribute), true)
+                                .FirstOrDefault() as PipelineOrderAttribute;
+                    return attr?.Order ?? int.MaxValue; // Defaults to last if no attribute is found
+                })
                 .ToArray();
 
-            if (behaviors.Length == 0)
-            {
-                // No behaviors, execute handler directly.
-                return pipeline(cancellationToken);
-            }
-
-            // Build the pipeline (in reverse order).
             for (int i = behaviors.Length - 1; i >= 0; i--)
             {
                 var behavior = behaviors[i];

@@ -5,7 +5,7 @@ using System.Collections.Concurrent;
 namespace MinDiator.Handlers
 {
     /// <summary>
-    /// Mediator implementation that handles requests and responses caching wrappers for reduced reflection.
+    /// Mediator implementation that handles requests, responses and notifications with caching wrappers for reduced reflection.
     /// </summary>
     public class Mediator : IMediator
     {
@@ -18,6 +18,11 @@ namespace MinDiator.Handlers
         /// Cache of request handlers.
         /// </summary>
         private static readonly ConcurrentDictionary<Type, RequestHandlerBase> _requestHandlers = new();
+
+        /// <summary>
+        /// Cache of notification handlers.
+        /// </summary>
+        private static readonly ConcurrentDictionary<Type, NotificationHandlerBase> _notificationHandlers = new();
 
         /// <summary>
         /// Initializes a new instance of the <see cref="Mediator"/> class.
@@ -91,6 +96,6 @@ namespace MinDiator.Handlers
             });
 
             return handler.Handle(request, _serviceProvider, cancellationToken);
-        }
+        }        
     }
 }
