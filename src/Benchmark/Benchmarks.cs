@@ -61,29 +61,29 @@ public class Benchmarks
         return await _minDiator.Send(_requestMinDiator);
     }
 
-    //[Benchmark]
-    //public async Task<string> MediatR_ISender_Send()
-    //{
-    //    return await _senderMediatR.Send(_requestMediatR);
-    //}
+    [Benchmark]
+    public async Task<string> MediatR_ISender_Send()
+    {
+        return await _senderMediatR.Send(_requestMediatR);
+    }
 
-    //[Benchmark]
-    //public async Task<string> MinDiator_ISender_Send()
-    //{
-    //    return await _senderMinDiator.Send(_requestMinDiator);
-    //}
+    [Benchmark]
+    public async Task<string> MinDiator_ISender_Send()
+    {
+        return await _senderMinDiator.Send(_requestMinDiator);
+    }
 
-    //[Benchmark]
-    //public async Task MediatR_IPublisher_Publish()
-    //{
-    //    await _publisherMediatR.Publish(_notificationMediatR);
-    //}
+    [Benchmark]
+    public async Task MediatR_IPublisher_Publish()
+    {
+        await _publisherMediatR.Publish(_notificationMediatR);
+    }
 
-    //[Benchmark]
-    //public async Task MinDiator_IPublisher_Publish()
-    //{
-    //    await _publisherMinDiator.Publish(_notificationMinDiator);
-    //}
+    [Benchmark]
+    public async Task MinDiator_IPublisher_Publish()
+    {
+        await _publisherMinDiator.Publish(_notificationMinDiator);
+    }
 }
 
 // Sample request/handler for both
