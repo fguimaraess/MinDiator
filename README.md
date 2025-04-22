@@ -141,7 +141,8 @@ public class MinDiatorPerformanceBehavior<TRequest, TResponse> : IPipelineBehavi
 ## ✅ Roadmap
 
 - [x] Pipeline Behaviors
-- [x] Exception Handlers
+- [] Exception Handlers
+- [x] IPublisher and INotification
 - [x] Test helpers
 
 ---
