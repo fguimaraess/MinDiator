@@ -6,7 +6,7 @@ using System.Reflection;
 namespace MinDiator.Configuration;
 
 /// <summary>
-/// Configuration class for registering Mediator pattern services in the DI container.
+/// Classe de configuração para registrar serviços do padrão Mediator no container de DI
 /// </summary>
 public class MinDiatorConfiguration
 {
@@ -17,23 +17,23 @@ public class MinDiatorConfiguration
     private bool _hasRegistered = false;
 
     /// <summary>
-    /// Internal constructor used by the AddMediatorPattern extension.
+    /// Construtor interno usado pela extensão AddMediatorPattern
     /// </summary>
-    /// <param name="services">DI service collection.</param>
+    /// <param name="services">Coleção de serviços do DI</param>
     internal MinDiatorConfiguration(IServiceCollection services)
     {
-        _services = services ?? throw new ArgumentNullException(nameof(services), "IServiceCollection cannot be null.");
+        _services = services ?? throw new ArgumentNullException(nameof(services), "IServiceCollection não pode ser nulo.");
     }
 
     /// <summary>
-    /// Registers handlers and behaviors from a specific assembly.
+    /// Registra handlers e behaviors de um assembly específico
     /// </summary>
-    /// <param name="assembly">Assembly to be scanned.</param>
-    /// <returns>The configuration instance for method chaining.</returns>
+    /// <param name="assembly">Assembly a ser escaneado</param>
+    /// <returns>A instância de configuração para chamadas em cadeia</returns>
     public MinDiatorConfiguration RegisterServicesFromAssembly(Assembly assembly)
     {
         if (assembly == null)
-            throw new ArgumentNullException(nameof(assembly), "Provided assembly cannot be null.");
+            throw new ArgumentNullException(nameof(assembly), "Assembly fornecido não pode ser nulo.");
 
         if (!_assemblies.Contains(assembly))
             _assemblies.Add(assembly);
@@ -41,28 +41,30 @@ public class MinDiatorConfiguration
         return this;
     }
 
+
     /// <summary>
-    /// Registers handlers and behaviors from the assembly that contains the specified type.
+    /// Registra handlers e behaviors do assembly que contém o tipo especificado
     /// </summary>
-    /// <typeparam name="T">Type whose assembly will be scanned.</typeparam>
-    /// <returns>The configuration instance for method chaining.</returns>
+    /// <typeparam name="T">Tipo cujo assembly será escaneado</typeparam>
+    /// <returns>A instância de configuração para chamadas em cadeia</returns>
     public MinDiatorConfiguration RegisterServicesFromAssemblyContaining<T>()
     {
         var assembly = typeof(T).Assembly;
         return assembly == null
-            ? throw new InvalidOperationException($"Could not locate the assembly for type {typeof(T).FullName}.")
+            ? throw new InvalidOperationException($"Não foi possível localizar o assembly para o tipo {typeof(T).FullName}.")
             : RegisterServicesFromAssembly(assembly);
     }
 
+
     /// <summary>
-    /// Registers handlers and behaviors from multiple assemblies.
+    /// Registra handlers e behaviors de múltiplos assemblies
     /// </summary>
-    /// <param name="assemblies">Assemblies to be scanned.</param>
-    /// <returns>The configuration instance for method chaining.</returns>
+    /// <param name="assemblies">Assemblies a serem escaneados</param>
+    /// <returns>A instância de configuração para chamadas em cadeia</returns>
     public MinDiatorConfiguration RegisterServicesFromAssemblies(params Assembly[] assemblies)
     {
         if (assemblies == null || assemblies.Length == 0)
-            throw new ArgumentException("At least one assembly must be provided.", nameof(assemblies));
+            throw new ArgumentException("Ao menos um assembly deve ser fornecido.", nameof(assemblies));
 
         foreach (var assembly in assemblies)
         {
@@ -78,50 +80,51 @@ public class MinDiatorConfiguration
     }
 
     /// <summary>
-    /// Adds a specific behavior to the pipeline.
+    /// Adiciona um behavior específico ao pipeline
     /// </summary>
-    /// <param name="behaviorInterface">Type of the behavior interface.</param>
-    /// <param name="behaviorImplementation">Type of the behavior implementation.</param>
-    /// <param name="lifetime">Lifetime of the service in the container.</param>
-    /// <returns>The configuration instance for method chaining.</returns>
-    public MinDiatorConfiguration AddBehavior(Type behaviorInterface, Type behaviorImplementation, ServiceLifetime lifetime = ServiceLifetime.Transient)
+    /// <param name="behaviorInterface">Tipo da interface do behavior</param>
+    /// <param name="behaviorImplementation">Tipo da implementação do behavior</param>
+    /// <param name="lifetime">Tempo de vida do serviço no container</param>
+    /// <returns>A instância de configuração para chamadas em cadeia</returns>
+    public MinDiatorConfiguration AddBehavior(Type behaviorInterface, Type behaviorImplementation, ServiceLifetime lifetime = ServiceLifetime.Singleton)
     {
         if (behaviorInterface == null)
-            throw new ArgumentNullException(nameof(behaviorInterface), "Behavior interface cannot be null.");
+            throw new ArgumentNullException(nameof(behaviorInterface), "Interface do behavior não pode ser nula.");
 
         if (behaviorImplementation == null)
-            throw new ArgumentNullException(nameof(behaviorImplementation), "Behavior implementation cannot be null.");
+            throw new ArgumentNullException(nameof(behaviorImplementation), "Implementação do behavior não pode ser nula.");
 
         _behaviors.Add((behaviorInterface, behaviorImplementation, lifetime));
         return this;
     }
 
     /// <summary>
-    /// Adds a specific exception handler.
+    /// Adiciona um handler de exceção específico
     /// </summary>
-    /// <param name="handlerInterface">Type of the exception handler interface.</param>
-    /// <param name="handlerImplementation">Type of the exception handler implementation.</param>
-    /// <returns>The configuration instance for method chaining.</returns>
+    /// <param name="handlerInterface">Tipo da interface do handler de exceção</param>
+    /// <param name="handlerImplementation">Tipo da implementação do handler de exceção</param>
+    /// <returns>A instância de configuração para chamadas em cadeia</returns>
     public MinDiatorConfiguration AddExceptionHandler(Type handlerInterface, Type handlerImplementation, ServiceLifetime lifetime = ServiceLifetime.Transient)
     {
         if (handlerInterface == null)
-            throw new ArgumentNullException(nameof(handlerInterface), "Exception handler interface cannot be null.");
+            throw new ArgumentNullException(nameof(handlerInterface), "Interface do exception handler não pode ser nula.");
 
         if (handlerImplementation == null)
-            throw new ArgumentNullException(nameof(handlerImplementation), "Exception handler implementation cannot be null.");
+            throw new ArgumentNullException(nameof(handlerImplementation), "Implementação do exception handler não pode ser nula.");
 
         _exceptionHandlers.Add((handlerInterface, handlerImplementation, lifetime));
         return this;
     }
 
     /// <summary>
-    /// Registers all configured services in the DI container.
-    /// Internal method called by the AddMediatorPattern extension.
+    /// Registra todos os serviços configurados no container de DI
+    /// Método interno chamado pela extensão AddMediatorPattern
     /// </summary>
     internal void Register()
     {
         if (!_assemblies.Any())
-            throw new InvalidOperationException("No assemblies registered. Use 'RegisterServicesFromAssembly' or similar methods to add assemblies before registering.");
+            throw new InvalidOperationException("Nenhum assembly registrado. Utilize 'RegisterServicesFromAssembly' ou métodos similares para adicionar assemblies antes de registrar.");
+
 
         foreach (var assembly in _assemblies.Distinct())
         {
@@ -133,29 +136,31 @@ public class MinDiatorConfiguration
             RegisterGenericHandlers(types, typeof(IRequestHandler<,>));
             RegisterGenericHandlers(types, typeof(IRequestExceptionHandler<,>));
             RegisterGenericHandlers(types, typeof(IRequestExceptionHandler<,,>));
-
-            // Adiciona registro para notification handlers
-            RegisterGenericHandlers(types, typeof(INotificationHandler<>));
         }
 
-        // Register explicitly configured behaviors.
+        // Registrar behaviors configurados explicitamente
         RegisterConfiguredBehaviors();
 
-        // Register explicitly configured exception handlers.
+        // Registrar exception handlers configurados explicitamente
         RegisterConfiguredExceptionHandlers();
 
-        // Register the mediator components.
-        _services.AddSingleton<IPublisher, Publisher>();
-        _services.AddSingleton<IMediator, Mediator>();
-        _services.AddSingleton<ISender, Sender>();
+        //// Registrar o mediador
+        _services.AddScoped<IMediator>(provider =>
+        {
+            // Instancia a classe concreta
+            return new Mediator(provider, _assemblies);
+        });
+
+        _services.AddScoped<ISender, Sender>();
+        _services.AddScoped<IPublisher, Publisher>();
 
         _hasRegistered = true;
     }
 
     /// <summary>
-    /// Registers request handlers from a specific assembly.
+    /// Registra handlers de requisições de um assembly específico
     /// </summary>
-    /// <param name="assembly">Assembly to be scanned.</param>
+    /// <param name="assembly">Assembly a ser escaneado</param>
     private void RegisterGenericHandlers(Type[] types, Type interfaceDefinition, ServiceLifetime lifetime = ServiceLifetime.Transient, bool skipOpenGenericImplementations = false)
     {
         foreach (var type in types)
@@ -174,7 +179,7 @@ public class MinDiatorConfiguration
     }
 
     /// <summary>
-    /// Registers explicitly configured behaviors.
+    /// Registra behaviors configurados explicitamente
     /// </summary>
     private void RegisterConfiguredBehaviors()
     {
@@ -185,13 +190,13 @@ public class MinDiatorConfiguration
     }
 
     /// <summary>
-    /// Registers explicitly configured exception handlers.
+    /// Registra handlers de exceção configurados explicitamente
     /// </summary>
     private void RegisterConfiguredExceptionHandlers()
     {
         foreach (var (interfaceType, implementationType, lifetime) in _exceptionHandlers)
         {
-            _services.Add(new ServiceDescriptor(interfaceType, implementationType, lifetime));
+            _services.Add(new ServiceDescriptor(interfaceType, implementationType));
         }
     }
 }

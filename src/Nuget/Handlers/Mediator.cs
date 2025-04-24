@@ -1,103 +1,327 @@
-﻿using MinDiator.Handlers.Base;
+﻿using Microsoft.Extensions.DependencyInjection;
+using MinDiator.Configuration;
+using MinDiator.Entities;
+using MinDiator.Handlers;
 using MinDiator.Interfaces;
 using System.Collections.Concurrent;
+using System.Linq.Expressions;
+using System.Reflection;
+using System.Runtime.ExceptionServices;
 
-namespace MinDiator.Handlers
+namespace MinDiator;
+
+/// <summary>
+/// Implementação principal do Mediator, responsável por enviar requisições aos handlers apropriados
+/// e coordenar a execução dos behaviors e tratamento de exceções
+/// </summary>
+public class Mediator : IMediator, ISender
 {
+    private readonly IServiceProvider _serviceProvider;
+    private static readonly ConcurrentDictionary<Type, Type> _handlerTypeCache = new();
+    private static readonly ConcurrentDictionary<Type, Func<object, object, CancellationToken, Task<object>>> _handlerDelegates = new();
+    private static readonly ConcurrentDictionary<Type, (IReadOnlyList<object> Behaviors, Delegate HandleDelegate)> _pipelineCache = new();
+    private readonly Dictionary<string, IReadOnlyList<object>> _behaviorMap;
+
     /// <summary>
-    /// Mediator implementation that handles requests, responses and notifications with caching wrappers for reduced reflection.
+    /// Construtor que recebe o provedor de serviços para resolução de handlers e behaviors
     /// </summary>
-    public class Mediator : IMediator
+    /// <param name="serviceProvider"></param>
+    /// <param name="assemblies"></param>
+    public Mediator(IServiceProvider serviceProvider, List<Assembly> assemblies)
     {
-        /// <summary>
-        /// The service provider used to resolve dependencies.
-        /// </summary>
-        private readonly IServiceProvider _serviceProvider;
+        _serviceProvider = serviceProvider;
+        _behaviorMap = new Dictionary<string, IReadOnlyList<object>>();
 
-        /// <summary>
-        /// Cache of request handlers.
-        /// </summary>
-        private static readonly ConcurrentDictionary<Type, RequestHandlerBase> _requestHandlers = new();
-
-        /// <summary>
-        /// Cache of notification handlers.
-        /// </summary>
-        private static readonly ConcurrentDictionary<Type, NotificationHandlerBase> _notificationHandlers = new();
-
-        /// <summary>
-        /// Initializes a new instance of the <see cref="Mediator"/> class.
-        /// </summary>
-        /// <param name="serviceProvider">The service provider used to resolve dependencies.</param>
-        public Mediator(IServiceProvider serviceProvider)
-        {
-            _serviceProvider = serviceProvider;
-        }
-
-        /// <summary>
-        /// Sends a request and returns the response of type TResponse.
-        /// </summary>
-        /// <typeparam name="TResponse">The type of the response.</typeparam>
-        /// <param name="request">The request to be sent.</param>
-        /// <param name="cancellationToken">The cancellation token.</param>
-        /// <returns>The response of type TResponse, wrapped into a Task.</returns>
-        public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
-        {
-            if (request == null)
+        assemblies
+            .Where(a => !a.IsDynamic && !a.FullName.StartsWith("System"))
+            .SelectMany(a => a.GetTypes())
+            .Where(t =>
+                t.IsClass &&
+                !t.IsAbstract &&
+                t.GetInterfaces().Any(i =>
+                    i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IRequest<>))
+            )
+            .ToList().ForEach(e =>
             {
-                throw new ArgumentNullException(nameof(request));
-            }
+                var responseType = GetResponseTypeFromRequest(e);
+                var requestType = e.GetInterfaces()
+                    .First(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IRequest<>));
 
-            var requestType = request.GetType();
-            var handler = (RequestHandlerWrapper<TResponse>)_requestHandlers.GetOrAdd(requestType, type =>
-            {
-                var responseType = typeof(TResponse);
-                var wrapperType = typeof(StaticCachedHandlerWrapper<,>).MakeGenericType(type, responseType);
+                var behaviorPipelineType = typeof(IPipelineBehavior<,>).MakeGenericType(requestType, responseType);
 
-                var wrapper = Activator.CreateInstance(wrapperType)
-                    ?? throw new InvalidOperationException($"Could not create wrapper type for {type}");
+                var instance = _serviceProvider.GetServices(behaviorPipelineType)
+                                        .OrderBy(b => b.GetType().GetCustomAttribute<PipelineOrderAttribute>()?.Order ?? int.MaxValue)
+                                        .ToList();
 
-                return (RequestHandlerBase)wrapper;
+                _behaviorMap[e.AssemblyQualifiedName] = instance;
             });
+    }
 
-            // TODO: If you want to put back the logic of IExceptionHandler, this is the point.
-            return handler.Handle(request, _serviceProvider, cancellationToken);
-        }
+    /// <summary>
+    /// Getter para Response by Request
+    /// </summary>
+    /// <param name="requestType"></param>
+    /// <returns></returns>
+    private Type GetResponseTypeFromRequest(Type requestType)
+    {
+        var requestInterface = requestType
+            .GetInterfaces()
+            .FirstOrDefault(i =>
+                i.IsGenericType &&
+                i.GetGenericTypeDefinition() == typeof(IRequest<>));
 
-        /// <summary>
-        /// Sends a request and returns the response as an object.
-        /// </summary>
-        /// <param name="request">The request to be sent.</param>
-        /// <param name="cancellationToken">The cancellation token.</param>
-        /// <returns>The response as an object, wrapped into a Task.</returns>
-        public Task<object> Send(object request, CancellationToken cancellationToken = default)
+        return requestInterface?.GetGenericArguments()[0];
+    }
+
+    /// <summary>
+    /// Envia uma requisição fortemente tipada para o handler apropriado
+    /// </summary>
+    /// <typeparam name="TResponse">Tipo da resposta esperada</typeparam>
+    /// <param name="request">A requisição a ser processada</param>
+    /// <param name="cancellationToken">Token de cancelamento para operações assíncronas</param>
+    /// <returns>A resposta do handler</returns>
+    public async Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
+    {
+        var requestType = request.GetType();
+
+        try
         {
-            if (request == null)
-            {
-                throw new ArgumentNullException(nameof(request));
-            }
+            // Criar o pipeline com os behaviors e executar a requisição
+            return await CreateRequestPipeline<TResponse>(request, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            // Lidar com a exceção usando IRequestExceptionHandler, se disponível
+            var actualException = ex.InnerException ?? ex;
+            var exceptionType = actualException.GetType();
+            var responseType = typeof(TResponse);
 
-            var requestType = request.GetType();
-            var handler = _requestHandlers.GetOrAdd(requestType, type =>
-            {
-                var requestInterface = type.GetInterfaces()
-                    .FirstOrDefault(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IRequest<>));
+            // Tentar encontrar os handlers de exceção específicos para este request e tipo de exceção
+            var exceptionHandlerType = typeof(IRequestExceptionHandler<,,>).MakeGenericType(requestType, responseType, exceptionType);
+            var exceptionHandlers = _serviceProvider.GetServices(exceptionHandlerType).ToList();
 
-                if (requestInterface == null)
+            if (exceptionHandlers.Any())
+            {
+                var exceptionHandlerState = new RequestExceptionHandlerState<TResponse>();
+
+                // Tentar cada handler de exceção registrado até que um deles trate a exceção
+                foreach (var exceptionHandler in exceptionHandlers)
                 {
-                    throw new InvalidOperationException($"Request type {type.Name} does not implement IRequest<TResponse>");
+                    var handleMethod = exceptionHandlerType.GetMethod("Handle");
+                    var handleTask = (Task<Unit>)handleMethod.Invoke(exceptionHandler, new object[] { request, actualException, exceptionHandlerState, cancellationToken });
+                    await handleTask;
+
+                    // Se o handler tratou a exceção, retornar a resposta fornecida
+                    if (exceptionHandlerState.Handled)
+                    {
+                        return exceptionHandlerState.Response;
+                    }
                 }
+            }
 
-                var responseType = requestInterface.GetGenericArguments()[0];
-                var wrapperType = typeof(StaticCachedHandlerWrapper<,>).MakeGenericType(type, responseType);
+            // Se nenhum handler de exceção tratou, relançar a exceção
+            throw;
+        }
+    }
 
-                var wrapper = Activator.CreateInstance(wrapperType)
-                    ?? throw new InvalidOperationException($"Could not create wrapper type for {type}");
+    /// <summary>
+    /// Cria o pipeline de requisição com todos os behaviors registrados
+    /// </summary>
+    /// <typeparam name="TResponse">Tipo da resposta esperada</typeparam>
+    /// <param name="request">A requisição a ser processada</param>
+    /// <param name="cancellationToken">Token de cancelamento para operações assíncronas</param>
+    /// <returns>A resposta após a execução do pipeline</returns>
+    private async Task<TResponse> CreateRequestPipeline<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken)
+    {
+        var requestType = request.GetType();
+        var pipelineInfo = _pipelineCache.GetOrAdd(
+            requestType,
+            _ => BuildPipeline<TResponse>(requestType));
 
-                return (RequestHandlerBase)wrapper;
-            });
+        if (pipelineInfo.Behaviors.Count == 0)
+            return await ExecuteHandler(request, cancellationToken);
 
-            // TODO: If you want to put back the logic of IExceptionHandler, this is the point.
-            return handler.Handle(request, _serviceProvider, cancellationToken);
-        }        
+        //Inicializa o pipeline com o handler final
+        RequestHandlerDelegate<TResponse> pipeline = (cancellationToken) => ExecuteHandler(request, cancellationToken);
+
+        foreach (var behavior in pipelineInfo.Behaviors.Cast<dynamic>().Reverse())
+        {
+            var currentPipeline = pipeline;
+            pipeline = (cancellationToken) => behavior.Handle((dynamic)request, currentPipeline, cancellationToken);
+        }
+
+        return await pipeline();
+    }
+
+    private (IReadOnlyList<object> Behaviors, Delegate HandleDelegate) BuildPipeline<TResponse>(Type requestType)
+    {
+        return (_behaviorMap[requestType.AssemblyQualifiedName], null);
+        //var behaviorType = typeof(IPipelineBehavior<,>).MakeGenericType(requestType, typeof(TResponse));
+        //var behaviors = _serviceProvider.GetServices(behaviorType)
+        //                                .OrderBy(b => b.GetType().GetCustomAttribute<PipelineOrderAttribute>()?.Order ?? int.MaxValue)
+        //                                .ToList();
+
+        //return (behaviors, null);
+    }
+
+    /// <summary>
+    /// Executa o handler apropriado para a requisição
+    /// </summary>
+    /// <typeparam name="TResponse">Tipo da resposta esperada</typeparam>
+    /// <param name="request">A requisição a ser processada</param>
+    /// <param name="cancellationToken">Token de cancelamento para operações assíncronas</param>
+    /// <returns>A resposta do handler</returns>
+    private async Task<TResponse> ExecuteHandler<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken)
+    {
+        var requestType = request.GetType();
+        var responseType = typeof(TResponse);
+
+        // Obter o handler
+        var handlerType = GetHandlerType(requestType);
+        var handler = GetHandler(_serviceProvider, handlerType);
+
+        if (handler == null)
+        {
+            throw new InvalidOperationException($"Não foi encontrado um handler para {requestType.Name}");
+        }
+
+        // Executar o handler
+        var handlerDelegate = GetHandlerDelegate(handler.GetType());
+        var result = await handlerDelegate(handler, request, cancellationToken);
+
+        return (TResponse)result;
+    }
+
+
+    private static Type GetHandlerType(Type requestType)
+    {
+        return _handlerTypeCache.GetOrAdd(requestType, static type =>
+        {
+            //Encontrar a interface
+            var requestInterface = type
+                                    .GetInterfaces()
+                                    .FirstOrDefault(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IRequest<>))
+                                    ?? throw new InvalidOperationException($"Tipo {type} não implementa IRequest<>");
+
+            var responseType = requestInterface.GetGenericArguments()[0];
+
+            return typeof(IRequestHandler<,>).MakeGenericType(type, responseType);
+        });
+    }
+
+    private static object GetHandler(IServiceProvider serviceProvider, Type handlerType)
+    {
+        return serviceProvider.GetRequiredService(handlerType);
+    }
+
+    private static Func<object, object, CancellationToken, Task<object>> GetHandlerDelegate(Type handlerType)
+    {
+        return _handlerDelegates.GetOrAdd(handlerType, type =>
+        {
+            //Encontrar a interface
+            var interfaceType = type.GetInterfaces()
+                                .FirstOrDefault(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IRequestHandler<,>))
+                                    ?? throw new InvalidOperationException($"Tipo {type} não implementa IRequestHandler");
+
+            var requestType = interfaceType.GetGenericArguments()[0];
+            var responseType = interfaceType.GetGenericArguments()[1];
+
+            var method = interfaceType.GetMethod("Handle");
+
+            var handlerParam = Expression.Parameter(typeof(object), "handler");
+            var requestParam = Expression.Parameter(typeof(object), "request");
+            var cancellationParam = Expression.Parameter(typeof(CancellationToken), "ct");
+
+            var handlerCast = Expression.Convert(handlerParam, type);
+            var requestCast = Expression.Convert(requestParam, requestType);
+
+            var call = Expression.Call(handlerCast, method, requestCast, cancellationParam);
+
+            //Auxilia na conversão de Task<T> em Task<object>
+            var wrapperMethod = typeof(Mediator)
+            .GetMethod(nameof(ConvertTaskToObjectAsync), BindingFlags.NonPublic | BindingFlags.Static)
+            .MakeGenericMethod(responseType);
+
+            var wrappedCall = Expression.Call(wrapperMethod, call);
+
+            return Expression.
+                    Lambda<Func<object, object, CancellationToken, Task<object>>>(
+                        wrappedCall,
+                        handlerParam,
+                        requestParam,
+                        cancellationParam)
+                    .Compile();
+        });
+    }
+
+    private static async Task<object> ConvertTaskToObjectAsync<T>(Task<T> task)
+    {
+        return await task.ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Envia uma requisição como objeto para o handler apropriado
+    /// Útil para chamadas via reflexão ou quando o tipo exato não é conhecido em tempo de compilação
+    /// </summary>
+    /// <param name="request">A requisição a ser processada como objeto</param>
+    /// <param name="cancellationToken">Token de cancelamento para operações assíncronas</param>
+    /// <returns>A resposta do handler como objeto</returns>
+    public async Task<object> Send(object request, CancellationToken cancellationToken = default)
+    {
+        if (request == null)
+            throw new ArgumentNullException(nameof(request));
+
+        var requestType = request.GetType();
+
+        try
+        {
+            // Encontrar o tipo de resposta apropriado
+            var responseType = GetResponseType(requestType);
+
+            // Criar o método genérico Send<TResponse>
+            var method = typeof(Mediator)
+                .GetMethods()
+                .First(m => m.Name == nameof(Send) && m.IsGenericMethod);
+
+            var genericMethod = method.MakeGenericMethod(responseType);
+
+            // Invocar o método genérico
+            return await (Task<object>)genericMethod.Invoke(this, new[] { request, cancellationToken });
+        }
+        catch (Exception ex)
+        {
+            // Preservar a stack trace original
+            ExceptionDispatchInfo.Capture(ex.InnerException ?? ex).Throw();
+            // Linha abaixo nunca é executada, apenas para compilação
+            throw;
+        }
+    }
+
+    /// <summary>
+    /// Obtém o tipo de resposta esperado para um tipo de requisição
+    /// </summary>
+    /// <param name="requestType">O tipo da requisição</param>
+    /// <returns>O tipo da resposta esperada</returns>
+    private Type GetResponseType(Type requestType)
+    {
+        // Encontrar a interface IRequest<TResponse> que o tipo implementa
+        var requestInterfaceType = requestType
+            .GetInterfaces()
+            .FirstOrDefault(i => i.IsGenericType &&
+                (i.GetGenericTypeDefinition() == typeof(IRequest<>) || i.GetGenericTypeDefinition() == typeof(IRequest)));
+
+        if (requestInterfaceType == null)
+        {
+            throw new InvalidOperationException($"O tipo {requestType.Name} não implementa IRequest<> ou IRequest");
+        }
+
+        // Se for IRequest, retorna Unit
+        if (requestInterfaceType.GetGenericTypeDefinition() == typeof(IRequest))
+        {
+            return typeof(Unit);
+        }
+
+        // Senão, retorna o tipo genérico da resposta
+        return requestInterfaceType.GetGenericArguments()[0];
     }
 }
