@@ -2,6 +2,7 @@ using MinDiator.Interfaces;
 using SampleAPI.Behavior;
 using SampleAPI.Features.GetWeatherForecast;
 using SampleAPI.Features.PostWeatherForecast;
+using SampleMinimalAPI.Behavior.Services;
 using System.Data;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -13,11 +14,12 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddMinDiator(cfg =>
 {
     cfg.RegisterServicesFromAssembly(typeof(Program).Assembly);
-    cfg.AddBehavior(typeof(IPipelineBehavior<,>), typeof(PerformanceBehavior<,>));
+    cfg.AddBehavior(typeof(IPipelineBehavior<,>), typeof(PerformanceBehavior<,>), lifetime: ServiceLifetime.Scoped);
 });
 
 //Simple MinDiator:
 //builder.Services.AddMinDiator("SampleAPI");
+builder.Services.AddScoped<IServiceBehavior, ServiceBehavior>();
 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
