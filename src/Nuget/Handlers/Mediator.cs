@@ -36,7 +36,7 @@ public class Mediator : IMediator, ISender
             .Where(a => !a.IsDynamic && !a.FullName.StartsWith("System"))
             .SelectMany(a => a.GetTypes())
             .Where(t =>
-                t.IsClass &&
+                !t.IsInterface &&
                 !t.IsAbstract &&
                 t.GetInterfaces().Any(i =>
                     i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IRequest<>))
